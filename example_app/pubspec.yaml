@@ -1,0 +1,16 @@
+name: otel_http_example
+publish_to: none
+description: Runnable demo of `otel_http` against a local LGTM stack.
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  otel_http:
+    path: ..
+  # Example apps use the Pro SDK to demonstrate the one-character
+  # switch (OTel.initialize -> DOTel.initialize). The package itself
+  # still depends only on the OSS SDK so non-Pro users can keep it.
+  dartastic_opentelemetry_pro:
+    path: ../../../pro/dartastic_opentelemetry_pro
+  http: ^1.0.0
