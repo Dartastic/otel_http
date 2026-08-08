@@ -1,9 +1,9 @@
 name: otel_http
-description: OpenTelemetry instrumentation for `package:http`. Wraps any
-  `http.Client` to emit a CLIENT-kind span per request with the HTTP
-  semantic-convention attributes, injects W3C trace-context headers,
-  and records exceptions / 4xx-5xx as Error status.
-version: 0.1.0-beta.1-wip
+description: >-
+  OpenTelemetry instrumentation for `package:http`. Wraps any `http.Client`
+  to emit a CLIENT-kind span per request with HTTP semconv attributes and
+  W3C trace-context injection.
+version: 0.2.0-wip
 repository: https://github.com/dartastic/otel_http
 homepage: https://dartastic.io
 
@@ -11,8 +11,8 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
-  dartastic_opentelemetry: ^1.1.0-beta.4
-  dartastic_opentelemetry_api: ^1.0.0-beta.6
+  dartastic_opentelemetry: ^1.1.0-beta.12
+  dartastic_opentelemetry_api: ^1.0.0-rc.1
   http: ^1.0.0
 
 dev_dependencies:

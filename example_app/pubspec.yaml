@@ -1,16 +1,15 @@
 name: otel_http_example
 publish_to: none
-description: Runnable demo of `otel_http` against a local LGTM stack.
+description: Runnable demo of `otel_http` against a local OTLP-capable
+  backend. Hits a public test endpoint with a handful of request
+  shapes — success, 4xx, 5xx, transport failure — so every client
+  code path produces visible spans in your tracing UI.
 
 environment:
   sdk: ^3.0.0
 
 dependencies:
+  dartastic_opentelemetry: ^1.1.0-beta.12
+  http: ^1.0.0
   otel_http:
     path: ..
-  # Example apps use the Pro SDK to demonstrate the one-character
-  # switch (OTel.initialize -> DOTel.initialize). The package itself
-  # still depends only on the OSS SDK so non-Pro users can keep it.
-  dartastic_opentelemetry_pro:
-    path: ../../../pro/dartastic_opentelemetry_pro
-  http: ^1.0.0

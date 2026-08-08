@@ -1,16 +1,16 @@
 # otel_http example app
 
-A standalone runnable demo of `otel_http` exporting
-telemetry to a local LGTM stack (Grafana + Loki + Tempo + Mimir).
+A standalone runnable demo of `otel_http` exporting telemetry to a
+local OTLP-capable backend with a trace UI.
 
 ## Run
 
 ```sh
-# 1. Start the LGTM stack (from the dartastic-pro repo root)
-docker compose -f tool/lgtm/docker-compose.yml up -d
+# 1. Start any OTLP-compatible backend that also serves a trace UI,
+#    exposing ports 3000 (UI), 4317 (OTLP/gRPC) and 4318 (OTLP/HTTP).
 
 # 2. Run the app
-cd dart/otel_http/example_app
+cd example_app
 dart pub get
 dart run bin/main.dart
 ```
@@ -31,7 +31,7 @@ client spans + the root):
 
 ## Where to look
 
-Grafana → Explore → Tempo datasource:
+In your trace UI (http://localhost:3000 for the container above):
 
 - Service name: `http-otel-example-app`
 - Open the `run-scenarios` trace and you'll see all five scenarios

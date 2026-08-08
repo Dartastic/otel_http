@@ -40,15 +40,22 @@ class OTelHttpClient extends http.BaseClient {
   /// - [recordRequestBodySize] / [recordResponseBodySize] — set the
   ///   `http.{request,response}.body.size` attributes from the
   ///   `Content-Length` header when present. Defaults to `true`.
+  /// - [ignoreUrlPatterns] — requests whose full URL matches any of
+  ///   these patterns (`String` substring or `RegExp`) are not
+  ///   instrumented at all: no span, no header injection. Use this to
+  ///   exclude telemetry-upload endpoints (an OTLP exporter going
+  ///   through this client would otherwise instrument its own
+  ///   uploads — the classic double-count trap) or hosts you never
+  ///   want traced.
   OTelHttpClient(
     http.Client inner, {
     Tracer? tracer,
     String Function(http.BaseRequest request)? spanNameBuilder,
     this.recordRequestBodySize = true,
     this.recordResponseBodySize = true,
+    this.ignoreUrlPatterns = const <Pattern>[],
   })  : _inner = inner,
-        _tracer =
-            tracer ?? OTel.tracerProvider().getTracer('otel_http'),
+        _tracer = tracer ?? OTel.tracerProvider().getTracer('otel_http'),
         _spanNameBuilder = spanNameBuilder ?? _defaultSpanName,
         _traceContextPropagator = W3CTraceContextPropagator(),
         _baggagePropagator = W3CBaggagePropagator();
@@ -65,6 +72,10 @@ class OTelHttpClient extends http.BaseClient {
   /// Whether to set `http.response.body.size` from `Content-Length`.
   final bool recordResponseBodySize;
 
+  /// URL patterns (matched against the full request URL) that are
+  /// excluded from instrumentation entirely.
+  final List<Pattern> ignoreUrlPatterns;
+
   static String _defaultSpanName(http.BaseRequest request) =>
       request.method.toUpperCase();
 
@@ -78,15 +89,20 @@ class OTelHttpClient extends http.BaseClient {
       return _inner.send(request);
     }
 
+    final url = request.url.toString();
+    if (ignoreUrlPatterns.any(url.contains)) {
+      return _inner.send(request);
+    }
+
     final uri = request.url;
     final method = request.method.toUpperCase();
 
     final attrs = <String, Object>{
-      Http.requestMethod.key: method,
+      Http.httpRequestMethod.key: method,
       Url.urlFull.key: _redactedUrl(uri),
       Url.urlScheme.key: uri.scheme,
-      if (uri.host.isNotEmpty) ServerResource.serverAddress.key: uri.host,
-      if (uri.hasPort) ServerResource.serverPort.key: uri.port,
+      if (uri.host.isNotEmpty) Server.serverAddress.key: uri.host,
+      if (uri.hasPort) Server.serverPort.key: uri.port,
       if (uri.path.isNotEmpty) Url.urlPath.key: uri.path,
       if (uri.hasQuery) Url.urlQuery.key: uri.query,
     };
@@ -94,7 +110,7 @@ class OTelHttpClient extends http.BaseClient {
     if (recordRequestBodySize) {
       final size = request.contentLength;
       if (size != null) {
-        attrs[Http.requestBodySize.key] = size;
+        attrs[Http.httpRequestBodySize.key] = size;
       }
     }
 
@@ -129,7 +145,7 @@ class OTelHttpClient extends http.BaseClient {
 
   void _finishWithResponse(APISpan span, http.StreamedResponse response) {
     final extra = <Attribute<Object>>[
-      OTel.attributeInt(Http.responseStatusCode.key, response.statusCode),
+      OTel.attributeInt(Http.httpResponseStatusCode.key, response.statusCode),
     ];
     if (response.statusCode >= 400) {
       span.setStatus(
@@ -139,7 +155,7 @@ class OTelHttpClient extends http.BaseClient {
     }
     if (recordResponseBodySize && response.contentLength != null) {
       extra.add(OTel.attributeInt(
-        Http.responseBodySize.key,
+        Http.httpResponseBodySize.key,
         response.contentLength!,
       ));
     }
@@ -152,7 +168,7 @@ class OTelHttpClient extends http.BaseClient {
     span.addAttributes(
       OTel.attributes([
         OTel.attributeString(
-          ErrorResource.errorType.key,
+          ErrorAttributes.errorType.key,
           error.runtimeType.toString(),
         ),
       ]),

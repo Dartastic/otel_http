@@ -134,6 +134,23 @@ SHOULD NOT contain credentials" requirement.
 | `spanNameBuilder` | `(req) => req.method.toUpperCase()` | Override the span name (e.g. inject a URL template). |
 | `recordRequestBodySize` | `true` | Set `http.request.body.size` from `contentLength`. |
 | `recordResponseBodySize` | `true` | Set `http.response.body.size` from `contentLength`. |
+| `ignoreUrlPatterns` | `const []` | Requests whose full URL matches any pattern (`String` substring or `RegExp`) are not instrumented at all — no span, no header injection. |
+
+```dart
+OTelHttpClient(
+  http.Client(),
+  ignoreUrlPatterns: [
+    RegExp(r'/v1/(traces|metrics|logs)$'), // OTLP upload endpoints
+    'analytics.example.com',
+  ],
+)
+```
+
+If your telemetry exporter shares this client, ignore its endpoints —
+otherwise every export becomes a span, which is itself exported (the
+double-count trap). `ignoreUrlPatterns` is configuration for known
+URLs; the zone-scoped suppression below stays the right tool for
+call-site scoping.
 
 ## Body sizes
 

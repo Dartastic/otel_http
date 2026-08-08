@@ -1,17 +1,18 @@
 // Licensed under the Apache License, Version 2.0
 // Copyright 2025, Mindful Software LLC, All rights reserved.
 
-/// Integration test: drive an OTelHttpClient request against the LGTM
-/// container's Grafana port (3000 — always responds), then poll
-/// Tempo's HTTP API to verify the client span arrived with the
+/// Integration test: drive an OTelHttpClient request against the
+/// backend container's UI port (3000 — always responds), then poll
+/// the trace query API to verify the client span arrived with the
 /// expected HTTP semconv attributes.
 ///
-/// Skipped when no LGTM stack is reachable. Bring one up first:
-///   docker compose -f tool/lgtm/docker-compose.yml up -d
+/// Skipped when no OTLP backend is reachable. Bring one up first:
+///   any OTLP-compatible backend exposing a trace-by-id query API on
+///   :3200, a UI on :3000, and OTLP on :4317/:4318
 ///
 /// Env vars:
-///   LGTM_OTLP_ENDPOINT — OTLP/HTTP endpoint (default http://localhost:4318)
-///   LGTM_TEMPO_URL    — Tempo HTTP API base (default http://localhost:3200)
+///   OTLP_ENDPOINT — OTLP/HTTP endpoint (default http://localhost:4318)
+///   TRACE_API_URL — trace query API base (default http://localhost:3200)
 library;
 
 import 'dart:async';
@@ -25,35 +26,36 @@ import 'package:test/test.dart';
 
 const _defaultOtlp = 'http://localhost:4318';
 const _defaultOtlpPort = 4318;
-const _defaultTempo = 'http://localhost:3200';
+const _defaultTraceApi = 'http://localhost:3200';
 
-// Target the LGTM container itself on its Grafana port — always
+// Target the backend container itself on its UI port — always
 // reachable when the stack is up, doesn't depend on httpbin.org.
 const _selfTargetUrl = 'http://localhost:3000/';
 
 void main() {
-  group('LGTM end-to-end', () {
-    final otlpEndpoint =
-        Platform.environment['LGTM_OTLP_ENDPOINT'] ?? _defaultOtlp;
-    final tempoUrl = Platform.environment['LGTM_TEMPO_URL'] ?? _defaultTempo;
+  group('OTLP backend end-to-end', () {
+    final otlpEndpoint = Platform.environment['OTLP_ENDPOINT'] ?? _defaultOtlp;
+    final traceApiUrl =
+        Platform.environment['TRACE_API_URL'] ?? _defaultTraceApi;
 
-    test('OTelHttpClient span appears in Tempo with HTTP semconv', () async {
-      // Skip unless BOTH Tempo's HTTP API and the OTLP port are
-      // reachable. Tempo /ready alone can match an unrelated service.
-      final tempoOk = await _tempoReachable(tempoUrl);
+    test('OTelHttpClient span appears in the backend with HTTP semconv',
+        () async {
+      // Skip unless BOTH the trace query API and the OTLP port are
+      // reachable. /ready alone can match an unrelated service.
+      final traceApiOk = await _traceApiReachable(traceApiUrl);
       final otlpOk = await _portOpen(otlpEndpoint);
-      if (!tempoOk || !otlpOk) {
+      if (!traceApiOk || !otlpOk) {
         markTestSkipped(
-          'LGTM not reachable (tempo=$tempoOk otlp=$otlpOk) — start it '
-          'with `docker compose -f tool/lgtm/docker-compose.yml up -d` and '
-          'rerun.',
+          'Backend not reachable (traces=$traceApiOk otlp=$otlpOk) — start '
+          'any OTLP-compatible backend with a trace query API on :3200, a '
+          'UI on :3000 and OTLP on :4317/:4318, then rerun.',
         );
         return;
       }
 
       await OTel.reset();
       await OTel.initialize(
-        serviceName: 'http-otel-lgtm-itest',
+        serviceName: 'http-otel-itest',
         serviceVersion: '0.0.1',
         endpoint: otlpEndpoint,
       );
@@ -68,7 +70,7 @@ void main() {
           try {
             await client.get(Uri.parse(_selfTargetUrl));
           } on Exception {
-            // Even if the request fails (Grafana returns a redirect
+            // Even if the request fails (the UI may return a redirect
             // chain, etc.), the client span is what we're verifying.
           }
         },
@@ -78,15 +80,15 @@ void main() {
       await OTel.tracerProvider().forceFlush();
       await OTel.shutdown();
 
-      final trace = await _pollTempoForTrace(
-        tempoUrl: tempoUrl,
+      final trace = await _pollBackendForTrace(
+        traceApiUrl: traceApiUrl,
         traceIdHex: traceIdHex,
         timeout: const Duration(seconds: 30),
       );
       expect(
         trace,
         isNotNull,
-        reason: 'Tempo never returned trace $traceIdHex',
+        reason: 'Backend never returned trace $traceIdHex',
       );
 
       final spans = <Map<String, dynamic>>[];
@@ -120,10 +122,10 @@ void main() {
   });
 }
 
-Future<bool> _tempoReachable(String tempoUrl) async {
+Future<bool> _traceApiReachable(String traceApiUrl) async {
   try {
     final c = HttpClient()..connectionTimeout = const Duration(seconds: 1);
-    final req = await c.getUrl(Uri.parse('$tempoUrl/ready'));
+    final req = await c.getUrl(Uri.parse('$traceApiUrl/ready'));
     final resp = await req.close().timeout(const Duration(seconds: 2));
     await resp.drain<void>();
     c.close();
@@ -147,8 +149,8 @@ Future<bool> _portOpen(String endpoint) async {
   }
 }
 
-Future<Map<String, dynamic>?> _pollTempoForTrace({
-  required String tempoUrl,
+Future<Map<String, dynamic>?> _pollBackendForTrace({
+  required String traceApiUrl,
   required String traceIdHex,
   required Duration timeout,
 }) async {
@@ -158,7 +160,7 @@ Future<Map<String, dynamic>?> _pollTempoForTrace({
     while (DateTime.now().isBefore(deadline)) {
       try {
         final req = await client.getUrl(
-          Uri.parse('$tempoUrl/api/traces/$traceIdHex'),
+          Uri.parse('$traceApiUrl/api/traces/$traceIdHex'),
         );
         final resp = await req.close();
         if (resp.statusCode == 200) {

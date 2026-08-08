@@ -1,28 +1,25 @@
 // Licensed under the Apache License, Version 2.0
 // Copyright 2025, Mindful Software LLC, All rights reserved.
 
-/// Runnable demo of `otel_http` against a local LGTM stack.
+/// Runnable demo of `otel_http` against a local OTLP-capable backend.
 ///
-/// Run the stack:
-///   docker compose -f ../../../tool/lgtm/docker-compose.yml up -d
+/// Start any OTLP-compatible backend that also serves a trace UI,
+/// exposing ports 3000 (UI), 4317 (OTLP/gRPC) and 4318 (OTLP/HTTP).
 ///
 /// Then run this app:
 ///   dart run bin/main.dart
 ///
-/// Open Grafana (http://localhost:3000), pick the Tempo datasource in
-/// Explore, search for service `http-otel-example-app`, and you'll
-/// see one trace per scenario — happy path, 4xx, 5xx, transport
-/// failure, and a POST with a body, each demonstrating a different
-/// code path through the client and the resulting span attributes.
+/// Open the trace UI (http://localhost:3000 for the container above),
+/// search for service `http-otel-example-app`, and you'll see one
+/// trace per scenario — happy path, 4xx, 5xx, transport failure, and
+/// a POST with a body, each demonstrating a different code path
+/// through the client and the resulting span attributes.
 library;
 
 import 'dart:async';
 import 'dart:io';
 
-// Example apps use the Pro SDK to demonstrate the one-character
-// switch (OTel.initialize -> DOTel.initialize). The package source
-// still imports the OSS SDK directly so non-Pro users can use it.
-import 'package:dartastic_opentelemetry_pro/dartastic_opentelemetry_pro.dart';
+import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:http/http.dart' as http;
 import 'package:otel_http/otel_http.dart';
 
@@ -37,14 +34,14 @@ Future<void> main(List<String> args) async {
 
   print('==> exporting to $endpoint as $_serviceName');
 
-  await DOTel.initialize(
+  await OTel.initialize(
     serviceName: _serviceName,
     serviceVersion: '0.0.1',
     endpoint: endpoint,
   );
 
   final client = OTelHttpClient(http.Client());
-  final tracer = DOTel.tracer();
+  final tracer = OTel.tracer();
 
   await tracer.startActiveSpanAsync<void>(
     name: 'run-scenarios',
@@ -80,7 +77,7 @@ Future<void> main(List<String> args) async {
         final r = await client.post(
           Uri.parse('https://httpbin.org/anything'),
           headers: {'content-type': 'application/json'},
-          body: '{"hello":"tempo"}',
+          body: '{"hello":"otel"}',
         );
         print('  ok  ${r.statusCode}');
       });
@@ -90,15 +87,15 @@ Future<void> main(List<String> args) async {
   client.close();
 
   print('==> flushing + shutting down');
-  await DOTel.tracerProvider().forceFlush();
-  await DOTel.shutdown();
-  print('==> done. open Grafana at http://localhost:3000 → Explore → '
-      'Tempo, service = $_serviceName');
+  await OTel.tracerProvider().forceFlush();
+  await OTel.shutdown();
+  print('==> done. open your trace UI (http://localhost:3000 for the '
+      'backend started above), service = $_serviceName');
 }
 
 Future<void> _scenario(String name, FutureOr<void> Function() body) async {
   print('--> $name');
-  await DOTel.tracer().startActiveSpanAsync<void>(
+  await OTel.tracer().startActiveSpanAsync<void>(
     name: name,
     fn: (_) async {
       try {

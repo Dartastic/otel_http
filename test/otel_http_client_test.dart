@@ -242,5 +242,22 @@ void main() {
       expect(inner.lastRequest, isNotNull);
       expect(inner.lastRequest!.headers['traceparent'], isNull);
     });
+
+    test('ignoreUrlPatterns: matching request gets no span and no headers',
+        () async {
+      client = OTelHttpClient(
+        inner,
+        ignoreUrlPatterns: [RegExp(r'/v1/traces$'), 'healthz'],
+      );
+
+      await client.post(Uri.parse('https://otlp.example.com/v1/traces'));
+      await client.get(Uri.parse('https://api.example.com/healthz'));
+      expect(exporter.spans, isEmpty);
+      expect(inner.lastRequest!.headers['traceparent'], isNull);
+
+      await client.get(Uri.parse('https://api.example.com/users/42'));
+      expect(exporter.spans, hasLength(1));
+      expect(inner.lastRequest!.headers['traceparent'], isNotNull);
+    });
   });
 }
