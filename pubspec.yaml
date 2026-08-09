@@ -3,7 +3,7 @@ description: >-
   OpenTelemetry instrumentation for `package:http`. Wraps any `http.Client`
   to emit a CLIENT-kind span per request with HTTP semconv attributes and
   W3C trace-context injection.
-version: 0.2.0-wip
+version: 0.2.0
 repository: https://github.com/dartastic/otel_http
 homepage: https://dartastic.io
 
