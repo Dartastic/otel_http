@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0
 // Copyright 2025, Mindful Software LLC, All rights reserved.
 
-import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
 import 'package:http/http.dart' as http;
 
 import 'http_suppression.dart';
@@ -49,22 +49,18 @@ class OTelHttpClient extends http.BaseClient {
   ///   want traced.
   OTelHttpClient(
     http.Client inner, {
-    Tracer? tracer,
+    APITracer? tracer,
     String Function(http.BaseRequest request)? spanNameBuilder,
     this.recordRequestBodySize = true,
     this.recordResponseBodySize = true,
     this.ignoreUrlPatterns = const <Pattern>[],
   })  : _inner = inner,
-        _tracer = tracer ?? OTel.tracerProvider().getTracer('otel_http'),
-        _spanNameBuilder = spanNameBuilder ?? _defaultSpanName,
-        _traceContextPropagator = W3CTraceContextPropagator(),
-        _baggagePropagator = W3CBaggagePropagator();
+        _tracer = tracer ?? OTelAPI.tracerProvider().getTracer('otel_http'),
+        _spanNameBuilder = spanNameBuilder ?? _defaultSpanName;
 
   final http.Client _inner;
-  final Tracer _tracer;
+  final APITracer _tracer;
   final String Function(http.BaseRequest request) _spanNameBuilder;
-  final W3CTraceContextPropagator _traceContextPropagator;
-  final W3CBaggagePropagator _baggagePropagator;
 
   /// Whether to set `http.request.body.size` from `Content-Length`.
   final bool recordRequestBodySize;
@@ -122,7 +118,7 @@ class OTelHttpClient extends http.BaseClient {
     final span = _tracer.startSpan(
       _spanNameBuilder(request),
       kind: SpanKind.client,
-      attributes: OTel.attributesFromMap(attrs),
+      attributes: OTelAPI.attributesFromMap(attrs),
     );
 
     // Inject W3C trace context + baggage into the outbound headers
@@ -130,8 +126,9 @@ class OTelHttpClient extends http.BaseClient {
     // headers map is mutable — we modify it in-place.
     final ctx = Context.current.withSpan(span);
     final setter = _MapSetter(request.headers);
-    _traceContextPropagator.inject(ctx, request.headers, setter);
-    _baggagePropagator.inject(ctx, request.headers, setter);
+    // The app's configured propagators (W3C trace context + baggage by
+    // default; OTEL_PROPAGATORS overrides).
+    OTelAPI.textMapPropagator.inject(ctx, request.headers, setter);
 
     try {
       final response = await _inner.send(request);
@@ -145,7 +142,8 @@ class OTelHttpClient extends http.BaseClient {
 
   void _finishWithResponse(APISpan span, http.StreamedResponse response) {
     final extra = <Attribute<Object>>[
-      OTel.attributeInt(Http.httpResponseStatusCode.key, response.statusCode),
+      OTelAPI.attributeInt(
+          Http.httpResponseStatusCode.key, response.statusCode),
     ];
     if (response.statusCode >= 400) {
       span.setStatus(
@@ -154,20 +152,20 @@ class OTelHttpClient extends http.BaseClient {
       );
     }
     if (recordResponseBodySize && response.contentLength != null) {
-      extra.add(OTel.attributeInt(
+      extra.add(OTelAPI.attributeInt(
         Http.httpResponseBodySize.key,
         response.contentLength!,
       ));
     }
-    span.addAttributes(OTel.attributes(extra));
+    span.addAttributes(OTelAPI.attributes(extra));
     span.end();
   }
 
   void _finishWithError(APISpan span, Object error, StackTrace stackTrace) {
     // error.type — runtime class of the underlying error (per OTel spec).
     span.addAttributes(
-      OTel.attributes([
-        OTel.attributeString(
+      OTelAPI.attributes([
+        OTelAPI.attributeString(
           ErrorAttributes.errorType.key,
           error.runtimeType.toString(),
         ),
