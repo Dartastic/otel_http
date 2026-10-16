@@ -1,8 +1,7 @@
 name: otel_http
 description: >-
-  OpenTelemetry instrumentation for `package:http`. Wraps any `http.Client`
-  to emit a CLIENT-kind span per request with HTTP semconv attributes and
-  W3C trace-context injection.
+  OpenTelemetry instrumentation for http by Dartastic.io. Adds standard
+  OpenTelemetry observability to applications that use http.
 version: 0.3.1-wip
 repository: https://github.com/dartastic/otel_http
 homepage: https://dartastic.io
