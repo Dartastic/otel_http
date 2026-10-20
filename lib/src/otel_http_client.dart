@@ -146,10 +146,13 @@ class OTelHttpClient extends http.BaseClient {
           Http.httpResponseStatusCode.key, response.statusCode),
     ];
     if (response.statusCode >= 400) {
-      span.setStatus(
-        SpanStatusCode.Error,
-        response.reasonPhrase ?? 'HTTP ${response.statusCode}',
-      );
+      // HTTP semconv: error.type is the status code as a string, and no
+      // status description (the status code already says why).
+      extra.add(OTelAPI.attributeString(
+        ErrorAttributes.errorType.key,
+        response.statusCode.toString(),
+      ));
+      span.setStatus(SpanStatusCode.Error);
     }
     if (recordResponseBodySize && response.contentLength != null) {
       extra.add(OTelAPI.attributeInt(

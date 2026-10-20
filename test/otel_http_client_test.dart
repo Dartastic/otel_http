@@ -135,6 +135,8 @@ void main() {
       final span = exporter.spans.single;
       expect(span.status, equals(SpanStatusCode.Error));
       expect(_attrs(span)['http.response.status_code'], equals(500));
+      expect(_attrs(span)['error.type'], equals('500'));
+      expect(span.statusDescription, isNull);
     });
 
     test('404 response sets span status to Error', () async {
@@ -146,6 +148,16 @@ void main() {
 
       final span = exporter.spans.single;
       expect(span.status, equals(SpanStatusCode.Error));
+      expect(_attrs(span)['error.type'], equals('404'));
+      expect(span.statusDescription, isNull);
+    });
+
+    test('2xx response leaves status unset and no error.type', () async {
+      await client.get(Uri.parse('https://api.example.com/ok'));
+
+      final span = exporter.spans.single;
+      expect(span.status, equals(SpanStatusCode.Unset));
+      expect(_attrs(span).containsKey('error.type'), isFalse);
     });
 
     test('transport exception records exception event + Error status',
