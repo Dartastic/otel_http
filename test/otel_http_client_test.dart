@@ -3,10 +3,12 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:otel_http/otel_http.dart';
 import 'package:test/test.dart';
 
@@ -183,6 +185,29 @@ void main() {
         isTrue,
         reason: 'recordException should have emitted an exception event',
       );
+    });
+
+    test('a request the caller aborts is not an error', () async {
+      // A real IOClient against a server that never answers, so the
+      // exception is the one package:http throws on an abort.
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((_) {});
+      addTearDown(() => server.close(force: true));
+      client.close();
+      client = OTelHttpClient(IOClient());
+      final abort = Completer<void>();
+      final url = Uri.parse('http://127.0.0.1:${server.port}/tiles/1/2/3');
+
+      final sent = client.send(
+        http.AbortableRequest('GET', url, abortTrigger: abort.future),
+      );
+      abort.complete();
+
+      await expectLater(sent, throwsA(isA<http.RequestAbortedException>()));
+      final span = exporter.spans.single;
+      expect(span.status, equals(SpanStatusCode.Unset));
+      expect(_attrs(span).containsKey('error.type'), isFalse);
+      expect(span.spanEvents ?? [], isEmpty);
     });
 
     test('URL userinfo is redacted in url.full', () async {

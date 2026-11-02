@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - 4xx and 5xx responses set `error.type` to the status code and leave the span status description empty, per the HTTP semantic conventions.
+- A request the caller aborts (`http.Abortable`, whose `abortTrigger` completes) is not an error: the span status stays unset, with no `error.type` and no exception event, per the HTTP semantic conventions. Requires `http` 1.5.0.
 
 ## [0.3.1] - 2026-10-17
 
