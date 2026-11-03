@@ -11,7 +11,7 @@ environment:
 
 dependencies:
   dartastic_opentelemetry_api: '>=1.0.0-rc.4 <1.0.0-rc.5'
-  http: ^1.0.0
+  http: ^1.5.0
 
 dev_dependencies:
   dart_flutter_team_lints: ^3.5.2

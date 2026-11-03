@@ -114,7 +114,8 @@ Wrap any `http.Client` and every request gets:
 - W3C `traceparent` / `tracestate` / `baggage` headers injected so
   any downstream service that also speaks OTel joins the same trace.
 - Exception recording (`recordException` + `error.type` + `Error`
-  status) on transport failures and 4xx / 5xx responses.
+  status) on transport failures and 4xx / 5xx responses. A request
+  the caller aborts is not an error.
 
 ## Why
 
@@ -214,14 +215,22 @@ Follows the OTel
 | `user_agent.original`           | `User-Agent` request header           | when present  |
 | `http.response.status_code`     | `response.statusCode`                 | on response   |
 | `http.response.body.size`       | `response.contentLength`              | when set      |
-| `error.type`                    | `runtimeType` of underlying error     | on exception  |
+| `error.type`                    | status code, or the error's type      | on error      |
 
 - **Span name** defaults to `{HTTP_METHOD}` (e.g. `GET`). Per the
   OTel spec the recommended name is `{METHOD} {url-template}` when
   the template is known; pass `spanNameBuilder` if you have one.
 - **Span kind** is `CLIENT`.
 - **Span status** is set to `Error` for 4xx / 5xx responses and any
-  thrown exception; otherwise it follows the SDK default.
+  thrown exception; otherwise it follows the SDK default. A request
+  the caller aborts through `http.Abortable` (its `abortTrigger`
+  completes, as when a screen that loads map tiles closes) is not an
+  error: the status stays unset, with no `error.type` and no
+  exception event, as the HTTP semantic conventions say for a
+  deliberate cancellation. `package:http` only reports that the
+  trigger fired, not why, so a timeout built on `abortTrigger` (as
+  chopper 8.4+ builds its method timeouts) also reads as a
+  cancellation, not an error.
 
 Userinfo in the URL (`https://alice:secret@host/...`) is redacted
 to `https://REDACTED:REDACTED@host/...` per the spec's "URL.full

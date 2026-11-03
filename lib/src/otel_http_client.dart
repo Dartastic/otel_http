@@ -14,6 +14,7 @@ import 'http_suppression.dart';
 /// `http.response.status_code`, …), injects W3C `traceparent` /
 /// `tracestate` / `baggage` headers so downstream services join the
 /// same trace, and records exceptions / 4xx-5xx as `Error` status.
+/// A request the caller aborts (`http.Abortable`) is not an error.
 ///
 /// ```dart
 /// import 'package:otel_http/otel_http.dart';
@@ -134,6 +135,12 @@ class OTelHttpClient extends http.BaseClient {
       final response = await _inner.send(request);
       _finishWithResponse(span, response);
       return response;
+    } on http.RequestAbortedException {
+      // The caller aborted the request (its `abortTrigger` completed).
+      // HTTP semconv: a deliberate cancellation is not an error, so the
+      // status stays unset, with no error.type and no exception event.
+      span.end();
+      rethrow;
     } on Object catch (error, stackTrace) {
       _finishWithError(span, error, stackTrace);
       rethrow;
