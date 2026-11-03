@@ -227,7 +227,10 @@ Follows the OTel
   completes, as when a screen that loads map tiles closes) is not an
   error: the status stays unset, with no `error.type` and no
   exception event, as the HTTP semantic conventions say for a
-  deliberate cancellation.
+  deliberate cancellation. `package:http` only reports that the
+  trigger fired, not why, so a timeout built on `abortTrigger` (as
+  chopper 8.4+ builds its method timeouts) also reads as a
+  cancellation, not an error.
 
 Userinfo in the URL (`https://alice:secret@host/...`) is redacted
 to `https://REDACTED:REDACTED@host/...` per the spec's "URL.full
