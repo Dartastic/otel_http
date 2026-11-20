@@ -15,6 +15,19 @@ import 'package:test/test.dart';
 /// A fake `http.Client` that returns a canned response and records
 /// the request it saw — lets us assert on the headers we injected
 /// without doing real network I/O.
+/// Runs [probe] inside `send`, where the inner client is called.
+class _ProbeClient extends http.BaseClient {
+  _ProbeClient(this.probe);
+  final Object? Function() probe;
+  Object? seen;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    seen = probe();
+    return http.StreamedResponse(const Stream<List<int>>.empty(), 200);
+  }
+}
+
 class _FakeClient extends http.BaseClient {
   _FakeClient({
     this.statusCode = 200,
@@ -115,6 +128,21 @@ void main() {
       expect(attrs['server.address'], equals('api.example.com'));
       expect(attrs['http.response.status_code'], equals(200));
       expect(span.status, isNot(equals(SpanStatusCode.Error)));
+    });
+
+    test(
+        'the inner send runs marked as instrumented, so a layer underneath '
+        'steps aside', () async {
+      bool? marked;
+      final probe = OTelHttpClient(_ProbeClient(() {
+        marked = httpRequestInstrumented();
+        return Zone.current[#otel_http_instrumented];
+      }));
+      await probe.get(Uri.parse('https://api.example.com/things'));
+      probe.close();
+      expect(marked, isTrue);
+      expect(httpRequestInstrumented(), isFalse,
+          reason: 'only the send itself is marked');
     });
 
     test('injects W3C traceparent into outbound request headers', () async {

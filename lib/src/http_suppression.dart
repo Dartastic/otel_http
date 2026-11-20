@@ -48,3 +48,24 @@ Future<T> runWithoutHttpInstrumentationAsync<T>(
 ) {
   return runZoned(body, zoneValues: {_suppressKey: true});
 }
+
+/// Zone key marking a request this package already instruments. Another
+/// layer that would instrument the same request underneath (a wrapper of
+/// `dart:io`'s `HttpClient`, or of the browser's `fetch`) checks it and
+/// steps aside, so the request gets one client span, not two. The key is
+/// the contract: a layer that cannot depend on this package reads
+/// `Zone.current[#otel_http_instrumented]` directly.
+const Symbol _instrumentedKey = #otel_http_instrumented;
+
+/// Returns `true` while the current zone is sending a request that
+/// [OTelHttpClient] instruments.
+bool httpRequestInstrumented() {
+  return Zone.current[_instrumentedKey] == true;
+}
+
+/// Runs [body] marked as instrumented: see [httpRequestInstrumented].
+/// [OTelHttpClient] sends every request this way; a hand-written
+/// instrumented client can do the same.
+Future<T> runAsInstrumentedHttp<T>(Future<T> Function() body) {
+  return runZoned(body, zoneValues: {_instrumentedKey: true});
+}
