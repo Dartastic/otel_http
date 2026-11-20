@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.3-wip]
 
+### Added
+
+- The wrapped client's send runs marked as instrumented (`httpRequestInstrumented()`, `runAsInstrumentedHttp`), so a layer that would trace the same request underneath, such as a wrapper of `dart:io`'s `HttpClient` or the browser's `fetch`, can step aside: one client span per request, even when the request fails to connect.
+
 ## [0.3.2] - 2026-11-03
 
 ### Fixed

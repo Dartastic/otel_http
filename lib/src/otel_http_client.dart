@@ -132,7 +132,9 @@ class OTelHttpClient extends http.BaseClient {
     OTelAPI.textMapPropagator.inject(ctx, request.headers, setter);
 
     try {
-      final response = await _inner.send(request);
+      // Marked, so a layer that would trace the same request underneath
+      // steps aside: one client span per request.
+      final response = await runAsInstrumentedHttp(() => _inner.send(request));
       _finishWithResponse(span, response);
       return response;
     } on http.RequestAbortedException {
